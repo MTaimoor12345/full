@@ -29,7 +29,7 @@ WORKDIR /app/admin
 COPY SportsStore.Admin/package*.json ./
 RUN npm ci
 COPY SportsStore.Admin/ .
-RUN npm run build
+RUN chmod +x node_modules/.bin/vite && npm run build
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
