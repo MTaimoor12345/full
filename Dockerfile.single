@@ -33,21 +33,11 @@ RUN chmod +x node_modules/.bin/vite && npm run build
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
-# Install nginx, curl, and RabbitMQ from official Debian package
+# Install nginx and curl only
 RUN apt-get update && apt-get install -y \
     nginx \
     curl \
-    gnupg \
-    apt-transport-https \
-    ca-certificates \
-    && curl -fsSL https://packagecloud.io/rabbitmq/rabbitmq-server/gpgkey | gpg --dearmor > /usr/share/keyrings/rabbitmq-archive-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/rabbitmq-archive-keyring.gpg] https://packagecloud.io/rabbitmq/rabbitmq-server/ubuntu noble main" > /etc/apt/sources.list.d/rabbitmq.list \
-    && apt-get update \
-    && apt-get install -y rabbitmq-server \
     && rm -rf /var/lib/apt/lists/*
-
-# Enable RabbitMQ management plugin
-RUN rabbitmq-plugins enable rabbitmq_management
 
 WORKDIR /app
 
@@ -62,6 +52,6 @@ COPY nginx.conf /app/nginx.conf
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
-EXPOSE 3000 5187 5138 5139 5140 5141 5672 15672
+EXPOSE 3000 5187 5138 5139 5140 5141
 
 CMD ["/app/start.sh"]
