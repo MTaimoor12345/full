@@ -103,117 +103,21 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: |
-          ${{ secrets.DOCKER_USERNAME }}/sportsstore
-          ghcr.io/${{ github.repository }}
-
     - name: Set lowercase repository owner
       id: repo_owner
       run: echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
 
-    - name: Build OrderAPI Image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: SportsStore.OrderAPI/Dockerfile
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-orderapi:latest,ghcr.io/${{ env.OWNER_LC }}/sportsstore-orderapi:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build InventoryService Image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: SportsStore.InventoryService/Dockerfile
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-inventory:latest,ghcr.io/${{ env.OWNER_LC }}/sportsstore-inventory:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build PaymentService Image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: SportsStore.PaymentService/Dockerfile
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-payment:latest,ghcr.io/${{ env.OWNER_LC }}/sportsstore-payment:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build ShippingService Image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: SportsStore.ShippingService/Dockerfile
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-shipping:latest,ghcr.io/${{ env.OWNER_LC }}/sportsstore-shipping:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build Blazor Image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: SportsStore.Blazor/Dockerfile
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-blazor:latest,ghcr.io/${{ env.OWNER_LC }}/sportsstore-blazor:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build Single Container Image
+    - name: Build Single Container Image (All-in-One)
       uses: docker/build-push-action@v5
       with:
         context: .
         file: Dockerfile.single
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-all:latest,ghcr.io/${{ env.OWNER_LC }}/sportsstore-all:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-  build-react-admin-image:
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      if: github.event_name != 'pull_request'
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Set lowercase repository owner
-      id: repo_owner
-      run: echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
-
-    - name: Build React Admin Image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./SportsStore.Admin
-        file: SportsStore.Admin/Dockerfile
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-admin:latest,ghcr.io/${{ env.OWNER_LC }}/sportsstore-admin:latest
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/sportsstore:latest
+          ${{ secrets.DOCKER_USERNAME }}/sportsstore:${{ github.sha }}
+          ghcr.io/${{ env.OWNER_LC }}/sportsstore:latest
+          ghcr.io/${{ env.OWNER_LC }}/sportsstore:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
