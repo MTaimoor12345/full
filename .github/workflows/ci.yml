@@ -24,8 +24,6 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        cache: true
-        cache-dependency-path: '**/packages.lock.json'
 
     - name: Restore dependencies
       run: dotnet restore SportsSln.sln
@@ -34,15 +32,14 @@ jobs:
       run: dotnet build SportsSln.sln --no-restore --configuration Release
 
     - name: Test
-      run: dotnet test SportsSln.sln --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test_results.trx" --collect:"XPlat Code Coverage"
+      run: dotnet test SportsSln.sln --no-build --configuration Release --verbosity normal --logger "trx" --collect:"XPlat Code Coverage"
 
-    - name: Test Report
-      uses: dorny/test-reporter@v1
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: .NET Tests
-        path: "**/test_results.trx"
-        reporter: dotnet-trx
+        name: test-results
+        path: '**/*.trx'
 
     - name: Upload Coverage
       uses: actions/upload-artifact@v4
