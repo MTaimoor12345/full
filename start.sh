@@ -1,8 +1,25 @@
 #!/bin/bash
-echo "Starting SportsStore All-in-One Container..."
+echo "Starting SportsStore All-in-One Container with RabbitMQ..."
 
 # Create data directories
 mkdir -p /data
+
+# Start RabbitMQ first
+echo "Starting RabbitMQ on port 5672..."
+service rabbitmq-server start
+
+# Wait for RabbitMQ to be ready
+echo "Waiting for RabbitMQ to start..."
+sleep 5
+
+# Check RabbitMQ status
+rabbitmqctl status > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✓ RabbitMQ is running"
+else
+    echo "✗ RabbitMQ failed to start"
+    exit 1
+fi
 
 # RabbitMQ Configuration (single container - use localhost)
 export RABBITMQ_HOST="localhost"
@@ -57,10 +74,12 @@ echo "========================================"
 echo "SportsStore is running!"
 echo "========================================"
 echo "React Admin:    http://localhost:3000"
+echo "Blazor:         http://localhost:5187"
 echo "OrderAPI:       http://localhost:5138"
 echo "Inventory:      http://localhost:5139"
 echo "Payment:        http://localhost:5140"
 echo "Shipping:       http://localhost:5141"
+echo "RabbitMQ:       http://localhost:15672 (guest/guest)"
 echo "========================================"
 
 # Keep container running
