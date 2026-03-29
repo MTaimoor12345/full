@@ -1,0 +1,130 @@
+@page "/cart"
+@inject ICartService CartService
+@inject IProductService ProductService
+@inject NavigationManager NavigationManager
+
+@implements IDisposable
+
+<PageTitle>Shopping Cart - SportsStore</PageTitle>
+
+<h1>Your Shopping Cart</h1>
+
+@if (_loading)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (!_cart.Items.Any())
+{
+    <div class="alert alert-info">
+        <h4 class="alert-heading">Your cart is empty!</h4>
+        <p>Add some products to your cart to get started.</p>
+        <hr>
+        <a href="/products" class="btn btn-primary">Continue Shopping</a>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th>Price</th>
+                            <th>Quantity</th>
+                            <th>Line Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _cart.Items)
+                        {
+                            <tr>
+                                <td>@item.ProductName</td>
+                                <td>@item.Price.ToString("C")</td>
+                                <td>
+                                    <div class="input-group" style="width: 120px;">
+                                        <button class="btn btn-outline-secondary" @onclick="() => UpdateQuantity(item.ProductId, item.Quantity - 1)">-</button>
+                                        <input type="text" class="form-control text-center" value="@item.Quantity" readonly>
+                                        <button class="btn btn-outline-secondary" @onclick="() => UpdateQuantity(item.ProductId, item.Quantity + 1)">+</button>
+                                    </div>
+                                </td>
+                                <td>@item.LineTotal.ToString("C")</td>
+                                <td>
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => RemoveItem(item.ProductId)">
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Order Summary</h5>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Items (@_cart.ItemCount)</span>
+                        <span>@_cart.Total.ToString("C")</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-3">
+                        <strong>Total</strong>
+                        <strong>@_cart.Total.ToString("C")</strong>
+                    </div>
+                    <a href="/checkout" class="btn btn-primary w-100">Proceed to Checkout</a>
+                </div>
+            </div>
+            <a href="/products" class="btn btn-outline-primary mt-3 w-100">Continue Shopping</a>
+        </div>
+    </div>
+}
+
+@code {
+    private CartDto _cart = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CartService.OnCartChanged += StateHasChanged;
+        await LoadCart();
+    }
+
+    private async Task LoadCart()
+    {
+        _loading = true;
+        try
+        {
+            _cart = await CartService.GetCartAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task UpdateQuantity(long productId, int quantity)
+    {
+        await CartService.UpdateQuantityAsync(productId, quantity);
+        await LoadCart();
+    }
+
+    private async Task RemoveItem(long productId)
+    {
+        await CartService.RemoveFromCartAsync(productId);
+        await LoadCart();
+    }
+
+    public void Dispose()
+    {
+        CartService.OnCartChanged -= StateHasChanged;
+    }
+}

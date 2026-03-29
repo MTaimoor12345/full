@@ -1,0 +1,141 @@
+version: '3.8'
+
+services:
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: sportsstore-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Order Management API
+  orderapi:
+    build:
+      context: .
+      dockerfile: SportsStore.OrderAPI/Dockerfile
+    container_name: sportsstore-orderapi
+    ports:
+      - "5138:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__OrderDatabase=Data Source=/data/orderapi.db
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+      - InventoryService__Url=http://inventoryservice:5001
+      - PaymentService__Url=http://paymentservice:5002
+      - ShippingService__Url=http://shippingservice:5003
+    volumes:
+      - orderapi_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # Inventory Service
+  inventoryservice:
+    build:
+      context: .
+      dockerfile: SportsStore.InventoryService/Dockerfile
+    container_name: sportsstore-inventory
+    ports:
+      - "5139:5001"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__InventoryDatabase=Data Source=/data/inventory.db
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    volumes:
+      - inventory_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # Payment Service
+  paymentservice:
+    build:
+      context: .
+      dockerfile: SportsStore.PaymentService/Dockerfile
+    container_name: sportsstore-payment
+    ports:
+      - "5140:5002"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__PaymentDatabase=Data Source=/data/payment.db
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    volumes:
+      - payment_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # Shipping Service
+  shippingservice:
+    build:
+      context: .
+      dockerfile: SportsStore.ShippingService/Dockerfile
+    container_name: sportsstore-shipping
+    ports:
+      - "5141:5003"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__ShippingDatabase=Data Source=/data/shipping.db
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    volumes:
+      - shipping_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # React Admin Dashboard
+  admin:
+    build:
+      context: ./SportsStore.Admin
+      dockerfile: Dockerfile
+    container_name: sportsstore-admin
+    ports:
+      - "3000:80"
+    depends_on:
+      - orderapi
+      - inventoryservice
+      - paymentservice
+      - shippingservice
+
+  # Blazor Customer Portal
+  blazor:
+    build:
+      context: .
+      dockerfile: SportsStore.Blazor/Dockerfile
+    container_name: sportsstore-blazor
+    ports:
+      - "5187:80"
+    environment:
+      - ApiBaseAddress=http://localhost:5138/
+    depends_on:
+      - orderapi
+
+volumes:
+  rabbitmq_data:
+  orderapi_data:
+  inventory_data:
+  payment_data:
+  shipping_data:
+
+networks:
+  default:
+    name: sportsstore-network

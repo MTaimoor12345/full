@@ -1,0 +1,54 @@
+﻿@inherits LayoutComponentBase
+@inject ICartService CartService
+@implements IDisposable
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4 justify-content-end">
+            <a href="/cart" class="btn btn-outline-primary position-relative">
+                🛒 Cart
+                @if (_cartItemCount > 0)
+                {
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                        @_cartItemCount
+                    </span>
+                }
+            </a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private int _cartItemCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CartService.OnCartChanged += OnCartChangedHandler;
+        await LoadCartCount();
+    }
+
+    private void OnCartChangedHandler()
+    {
+        _ = LoadCartCount();
+    }
+
+    private async Task LoadCartCount()
+    {
+        var cart = await CartService.GetCartAsync();
+        _cartItemCount = cart.ItemCount;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        CartService.OnCartChanged -= OnCartChangedHandler;
+    }
+}

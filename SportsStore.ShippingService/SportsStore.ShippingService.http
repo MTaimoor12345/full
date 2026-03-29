@@ -1,0 +1,6 @@
+@SportsStore.ShippingService_HostAddress = http://localhost:5249
+
+GET {{SportsStore.ShippingService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

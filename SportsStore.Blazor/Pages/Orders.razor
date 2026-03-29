@@ -1,0 +1,101 @@
+@page "/orders"
+@inject IOrderService OrderService
+
+<PageTitle>My Orders - SportsStore</PageTitle>
+
+<h1>My Orders</h1>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="email" class="form-control" @bind="_email" placeholder="Enter your email to view orders">
+            <button class="btn btn-primary" @onclick="LoadOrders">Search</button>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (_orders.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Order #</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Total</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var order in _orders)
+                {
+                    <tr>
+                        <td>#@order.OrderId</td>
+                        <td>@order.CreatedAt.ToString("MMM dd, yyyy")</td>
+                        <td>
+                            <span class="badge @GetStatusBadgeClass(order.Status)">@order.Status</span>
+                        </td>
+                        <td>@order.TotalAmount.ToString("C")</td>
+                        <td>
+                            <a href="/orders/@order.OrderId" class="btn btn-outline-primary btn-sm">View Details</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else if (!string.IsNullOrEmpty(_email) && _searched)
+{
+    <div class="alert alert-info">
+        <p class="mb-0">No orders found for <strong>@_email</strong></p>
+    </div>
+}
+
+@code {
+    private string _email = "";
+    private List<OrderDto> _orders = new();
+    private bool _loading = false;
+    private bool _searched = false;
+
+    private async Task LoadOrders()
+    {
+        if (string.IsNullOrWhiteSpace(_email))
+            return;
+
+        _loading = true;
+        _searched = true;
+        try
+        {
+            _orders = (await OrderService.GetCustomerOrdersAsync(_email)).ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status.ToLower() switch
+        {
+            "pending" => "bg-warning text-dark",
+            "inventorypending" => "bg-info text-dark",
+            "paymentpending" => "bg-info text-dark",
+            "shipped" => "bg-primary",
+            "completed" => "bg-success",
+            "cancelled" => "bg-danger",
+            "failed" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+}

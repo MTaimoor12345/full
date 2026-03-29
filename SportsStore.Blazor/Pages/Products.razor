@@ -1,0 +1,165 @@
+@page "/"
+@page "/products"
+@page "/products/{Category}"
+@inject IProductService ProductService
+@inject ICartService CartService
+@inject NavigationManager NavigationManager
+
+@implements IDisposable
+
+<PageTitle>Products - SportsStore</PageTitle>
+
+<h1>Sports Store</h1>
+<p class="lead">Welcome to the Sports Store! Browse our products below.</p>
+
+@if (_loading)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            @_errorMessage
+            <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @_successMessage
+            <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
+        </div>
+    }
+    <div class="row mb-4">
+        <div class="col">
+            <div class="btn-group" role="group">
+                <a href="/products" class="btn @(_selectedCategory == null ? "btn-primary" : "btn-outline-primary")">All</a>
+                @foreach (var category in _categories)
+                {
+                    <a href="/products/@Uri.EscapeDataString(category)" 
+                       class="btn @(_selectedCategory == category ? "btn-primary" : "btn-outline-primary")">
+                        @category
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        @foreach (var product in _products)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@product.Name</h5>
+                        <p class="card-text text-muted">@product.Category</p>
+                        <p class="card-text">@product.Description</p>
+                    </div>
+                    <div class="card-footer bg-transparent border-top-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="h5 mb-0">@product.Price.ToString("C")</span>
+                            <button class="btn btn-primary" @onclick="() => AddToCart(product)">
+                                Add to Cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (_totalPages > 1)
+    {
+        <nav aria-label="Product pagination">
+            <ul class="pagination justify-content-center">
+                @for (int i = 1; i <= _totalPages; i++)
+                {
+                    var pageNum = i;
+                    <li class="page-item @(_currentPage == pageNum ? "active" : "")">
+                        <button class="page-link" @onclick="() => LoadPage(pageNum)">@pageNum</button>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+}
+
+@code {
+    [Parameter]
+    public string? Category { get; set; }
+
+    private List<ProductDto> _products = new();
+    private List<string> _categories = new();
+    private string? _selectedCategory;
+    private int _currentPage = 1;
+    private int _totalPages = 1;
+    private bool _loading = true;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = (await ProductService.GetCategoriesAsync()).ToList();
+        CartService.OnCartChanged += OnCartChangedHandler;
+    }
+
+    private void OnCartChangedHandler()
+    {
+        // Cart changed, no action needed here
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _selectedCategory = Category;
+        _currentPage = 1;
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        _loading = true;
+        try
+        {
+            var result = await ProductService.GetProductsAsync(_currentPage, 6, _selectedCategory);
+            _products = result.Products;
+            _totalPages = result.TotalPages;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadPage(int page)
+    {
+        _currentPage = page;
+        await LoadProducts();
+    }
+
+    private async Task AddToCart(ProductDto product)
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        
+        var result = await CartService.AddToCartAsync(product);
+        if (result.Success)
+        {
+            _successMessage = $"{product.Name} added to cart!";
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage ?? "Failed to add item to cart";
+        }
+    }
+
+    public void Dispose()
+    {
+        CartService.OnCartChanged -= OnCartChangedHandler;
+    }
+}

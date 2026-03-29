@@ -1,0 +1,94 @@
+@page "/payment-success"
+
+<PageTitle>Payment Success - SportsStore</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Verifying payment...</p>
+    </div>
+}
+else if (_error)
+{
+    <div class="alert alert-danger">
+        <h4 class="alert-heading">Payment Verification Failed</h4>
+        <p>@_errorMessage</p>
+        <hr>
+        <a href="/checkout" class="btn btn-primary">Try Again</a>
+    </div>
+}
+else
+{
+    <div class="alert alert-success">
+        <h4 class="alert-heading">Payment Successful!</h4>
+        <p>Your payment has been processed successfully.</p>
+        <p>Order #@_orderId is now being prepared.</p>
+        <hr>
+        <a href="/orders/@_orderId" class="btn btn-primary">View Order</a>
+        <a href="/products" class="btn btn-outline-primary ms-2">Continue Shopping</a>
+    </div>
+}
+
+@code {
+    [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ICartService CartService { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _error = false;
+    private string _errorMessage = "";
+    private int _orderId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        
+        var sessionId = query["session_id"];
+        var orderIdStr = query["order_id"];
+
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(orderIdStr))
+        {
+            _error = true;
+            _errorMessage = "Missing payment information.";
+            _loading = false;
+            return;
+        }
+
+        if (!int.TryParse(orderIdStr, out _orderId))
+        {
+            _error = true;
+            _errorMessage = "Invalid order ID.";
+            _loading = false;
+            return;
+        }
+
+        try
+        {
+            // Verify payment with the API
+            var response = await Http.GetAsync($"api/orders/payment-success?session_id={Uri.EscapeDataString(sessionId)}&order_id={_orderId}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                // Clear cart after successful payment
+                await CartService.ClearCartAsync();
+                _loading = false;
+            }
+            else
+            {
+                _error = true;
+                _errorMessage = "Payment verification failed. Please contact support.";
+                _loading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = true;
+            _errorMessage = $"Error: {ex.Message}";
+            _loading = false;
+        }
+    }
+}

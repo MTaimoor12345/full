@@ -1,0 +1,35 @@
+@page "/payment-cancel"
+
+<PageTitle>Payment Cancelled - SportsStore</PageTitle>
+
+<div class="alert alert-warning">
+    <h4 class="alert-heading">Payment Cancelled</h4>
+    <p>Your payment was cancelled. Your order is still pending.</p>
+    <hr>
+    <a href="/checkout" class="btn btn-primary">Try Again</a>
+    <a href="/products" class="btn btn-outline-primary ms-2">Continue Shopping</a>
+</div>
+
+@code {
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private HttpClient Http { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var orderIdStr = query["order_id"];
+
+        if (!string.IsNullOrEmpty(orderIdStr) && int.TryParse(orderIdStr, out var orderId))
+        {
+            try
+            {
+                await Http.GetAsync($"api/orders/payment-cancel?order_id={orderId}");
+            }
+            catch
+            {
+                // Ignore errors on cancel
+            }
+        }
+    }
+}

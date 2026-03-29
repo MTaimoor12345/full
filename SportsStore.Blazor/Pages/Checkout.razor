@@ -1,0 +1,262 @@
+@page "/checkout"
+@using System.ComponentModel.DataAnnotations
+
+<PageTitle>Checkout - SportsStore</PageTitle>
+
+<h1>Checkout</h1>
+
+@if (_loading)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (!_cart.Items.Any())
+{
+    <div class="alert alert-warning">
+        <h4 class="alert-heading">Your cart is empty!</h4>
+        <p>Add some products before checking out.</p>
+        <hr>
+        <a href="/products" class="btn btn-primary">Browse Products</a>
+    </div>
+}
+else if (_orderPlaced)
+{
+    <div class="alert alert-success">
+        <h4 class="alert-heading">Order Placed Successfully!</h4>
+        <p>Your order #@_orderId has been placed and is being processed.</p>
+        <hr>
+        <p>You will receive a confirmation email at <strong>@_email</strong></p>
+        <a href="/orders/@_orderId" class="btn btn-primary">View Order</a>
+        <a href="/products" class="btn btn-outline-primary ms-2">Continue Shopping</a>
+    </div>
+}
+else if (_redirectingToPayment)
+{
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <h4>Redirecting to Secure Payment...</h4>
+        <p class="text-muted">Please wait while we redirect you to our secure payment processor.</p>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Shipping Information</h5>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="_model" OnValidSubmit="HandleSubmit">
+                        <DataAnnotationsValidator />
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Full Name *</label>
+                                <InputText @bind-Value="_model.Name" class="form-control" />
+                                <ValidationMessage For="() => _model.Name" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email *</label>
+                                <InputText @bind-Value="_model.Email" class="form-control" type="email" />
+                                <ValidationMessage For="() => _model.Email" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Address *</label>
+                            <InputText @bind-Value="_model.Line1" class="form-control" />
+                            <ValidationMessage For="() => _model.Line1" />
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">City *</label>
+                                <InputText @bind-Value="_model.City" class="form-control" />
+                                <ValidationMessage For="() => _model.City" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">State *</label>
+                                <InputText @bind-Value="_model.State" class="form-control" />
+                                <ValidationMessage For="() => _model.State" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Zip Code *</label>
+                                <InputText @bind-Value="_model.Zip" class="form-control" />
+                                <ValidationMessage For="() => _model.Zip" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Country *</label>
+                            <InputText @bind-Value="_model.Country" class="form-control" />
+                            <ValidationMessage For="() => _model.Country" />
+                        </div>
+
+                        @if (_errorMessage != null)
+                        {
+                            <div class="alert alert-danger">@_errorMessage</div>
+                        }
+
+                        <button type="submit" class="btn btn-primary btn-lg" disabled="@_submitting">
+                            @if (_submitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            Place Order
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Order Summary</h5>
+                </div>
+                <div class="card-body">
+                    @foreach (var item in _cart.Items)
+                    {
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>@item.ProductName x @item.Quantity</span>
+                            <span>@item.LineTotal.ToString("C")</span>
+                        </div>
+                    }
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <strong>Total</strong>
+                        <strong>@_cart.Total.ToString("C")</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private ICartService CartService { get; set; } = default!;
+    [Inject] private IOrderService OrderService { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IConfiguration Configuration { get; set; } = default!;
+
+    private CartDto _cart = new();
+    private bool _loading = true;
+    private bool _submitting = false;
+    private bool _orderPlaced = false;
+    private bool _redirectingToPayment = false;
+    private int _orderId;
+    private string _email = "";
+    private string? _errorMessage;
+
+    private CheckoutModel _model = new();
+
+    public class CheckoutModel
+    {
+        [Required(ErrorMessage = "Name is required")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Address is required")]
+        public string Line1 { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "City is required")]
+        public string City { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "State is required")]
+        public string State { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Zip Code is required")]
+        public string Zip { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Country is required")]
+        public string Country { get; set; } = "USA";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCart();
+    }
+
+    private async Task LoadCart()
+    {
+        _loading = true;
+        try
+        {
+            _cart = await CartService.GetCartAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _submitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var checkout = new CheckoutDto
+            {
+                Name = _model.Name,
+                Email = _model.Email,
+                Line1 = _model.Line1,
+                City = _model.City,
+                State = _model.State,
+                Zip = _model.Zip,
+                Country = _model.Country,
+                CartItems = _cart.Items.Select(i => new CheckoutItemDto
+                {
+                    ProductId = i.ProductId,
+                    ProductName = i.ProductName,
+                    Quantity = i.Quantity,
+                    ProductPrice = i.Price
+                }).ToList()
+            };
+
+            // Get Blazor base URL from configuration (for Stripe redirect)
+            var blazorBaseUrl = Configuration["BlazorBaseUrl"] ?? NavigationManager.BaseUri.TrimEnd('/');
+            var result = await OrderService.CheckoutAsync(checkout, blazorBaseUrl);
+
+            // Check for errors (e.g., insufficient inventory)
+            if (!string.IsNullOrEmpty(result.ErrorMessage))
+            {
+                _errorMessage = result.ErrorMessage;
+                return;
+            }
+            
+            if (result.RequiresPayment && !string.IsNullOrEmpty(result.PaymentUrl))
+            {
+                // Redirect to Stripe payment page
+                _redirectingToPayment = true;
+                await CartService.ClearCartAsync();
+                NavigationManager.NavigateTo(result.PaymentUrl, forceLoad: true);
+                return;
+            }
+            
+            // No payment required (Stripe not configured), order is complete
+            _orderId = result.OrderId;
+            _email = _model.Email;
+            _orderPlaced = true;
+            await CartService.ClearCartAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Order failed: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

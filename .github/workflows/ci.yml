@@ -1,0 +1,242 @@
+name: SportsStore CI/CD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '20.x'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        cache: true
+        cache-dependency-path: '**/packages.lock.json'
+
+    - name: Restore dependencies
+      run: dotnet restore SportsSln.sln
+
+    - name: Build
+      run: dotnet build SportsSln.sln --no-restore --configuration Release
+
+    - name: Test
+      run: dotnet test SportsSln.sln --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test_results.trx" --collect:"XPlat Code Coverage"
+
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: .NET Tests
+        path: "**/test_results.trx"
+        reporter: dotnet-trx
+
+    - name: Upload Coverage
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: code-coverage
+        path: '**/coverage.cobertura.xml'
+
+    - name: Publish OrderAPI
+      run: dotnet publish SportsStore.OrderAPI/SportsStore.OrderAPI.csproj -c Release -o ./publish/orderapi
+
+    - name: Publish InventoryService
+      run: dotnet publish SportsStore.InventoryService/SportsStore.InventoryService.csproj -c Release -o ./publish/inventory
+
+    - name: Publish PaymentService
+      run: dotnet publish SportsStore.PaymentService/SportsStore.PaymentService.csproj -c Release -o ./publish/payment
+
+    - name: Publish ShippingService
+      run: dotnet publish SportsStore.ShippingService/SportsStore.ShippingService.csproj -c Release -o ./publish/shipping
+
+    - name: Publish Blazor
+      run: dotnet publish SportsStore.Blazor/SportsStore.Blazor.csproj -c Release -o ./publish/blazor
+
+    - name: Build React Admin
+      working-directory: SportsStore.Admin
+      run: |
+        npm ci
+        npm run build
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: published-apps
+        path: ./publish/
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      if: github.event_name != 'pull_request'
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ secrets.DOCKER_USERNAME }}/sportsstore
+          ghcr.io/${{ github.repository }}
+
+    - name: Build OrderAPI Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: SportsStore.OrderAPI/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-orderapi:latest,ghcr.io/${{ github.repository_owner }}/sportsstore-orderapi:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build InventoryService Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: SportsStore.InventoryService/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-inventory:latest,ghcr.io/${{ github.repository_owner }}/sportsstore-inventory:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build PaymentService Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: SportsStore.PaymentService/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-payment:latest,ghcr.io/${{ github.repository_owner }}/sportsstore-payment:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build ShippingService Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: SportsStore.ShippingService/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-shipping:latest,ghcr.io/${{ github.repository_owner }}/sportsstore-shipping:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build Blazor Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: SportsStore.Blazor/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-blazor:latest,ghcr.io/${{ github.repository_owner }}/sportsstore-blazor:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build Single Container Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: Dockerfile.single
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-all:latest,ghcr.io/${{ github.repository_owner }}/sportsstore-all:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  build-react-admin-image:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      if: github.event_name != 'pull_request'
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build React Admin Image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./SportsStore.Admin
+        file: SportsStore.Admin/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ secrets.DOCKER_USERNAME }}/sportsstore-admin:latest,ghcr.io/${{ github.repository_owner }}/sportsstore-admin:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Run Integration Tests
+      run: dotnet test SportsStore.IntegrationTests/SportsStore.IntegrationTests.csproj --configuration Release
+      env:
+        RabbitMQ__Host: localhost
+        RabbitMQ__Username: guest
+        RabbitMQ__Password: guest
